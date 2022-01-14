@@ -181,11 +181,13 @@ class VQVAE(pl.LightningModule):
         self.n_post_upscale_blocks = args.n_post_upscale_blocks
         self.n_post_downscale_blocks = args.n_post_downscale_blocks
 
-        assert len(args.num_embeddings) in (1, args.n_bottleneck_blocks)
-        if len(args.num_embeddings) == 1:
-            self.num_embeddings = [args.num_embeddings[0] for _ in range(args.n_bottleneck_blocks)]
-        else:
-            self.num_embeddings = args.num_embeddings
+        # assert len(args.num_embeddings) in (1, args.n_bottleneck_blocks)
+        
+        self.num_embeddings = [args.num_embeddings for _ in range(args.n_bottleneck_blocks)]
+        # if len(args.num_embeddings) == 1:
+        #     self.num_embeddings = [args.num_embeddings[0] for _ in range(args.n_bottleneck_blocks)]
+        # else:
+        #     self.num_embeddings = args.num_embeddings
 
         resblocks = {'regular': FixupResBlock, 'pre-activation': PreActFixupResBlock, 'evonorm': EvonormResBlock}
         self.resblock = resblocks[args.block_type]

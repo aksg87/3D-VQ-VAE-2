@@ -18,7 +18,7 @@ def parse_arguments():
     parser = VQVAE.add_model_specific_args(parser)
 
     parser.add_argument('--rescale-input', type=int, nargs='+')
-    parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("dataset_path", type=Path)
 
 
@@ -45,6 +45,7 @@ def parse_arguments():
 
 
 def main(args):
+    print(f"ARGS = \n {args} \n ***")
     torch.cuda.empty_cache()
 
     pl.trainer.seed_everything(seed=42)

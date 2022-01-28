@@ -1,15 +1,16 @@
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
-import pytorch_lightning as pl
 import nrrd
-import torch
 import numpy as np
-from torch.utils.data import DataLoader
+import pytorch_lightning as pl
+import torch
 from monai import transforms
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from utils import CTDataModule, CTScanDataset, DepthPadAndCrop
 
 from vqvae.model import VQVAE
-from utils import CTScanDataset, DepthPadAndCrop, CTDataModule
 
 
 def main(args: Namespace):
@@ -18,28 +19,34 @@ def main(args: Namespace):
     min_val, max_val, scale_val = -1500, 3000, 1000
 
     print("- Loading dataloader")
-    datamodule = CTDataModule(path=args.dataset_path,  train_frac=1, batch_size=1, num_workers=0, rescale_input=args.rescale_input)
+    datamodule = CTDataModule(path=args.dataset_path,  train_frac=1, batch_size=1, num_workers=0, rescale_input=(args.rescale_input))
     datamodule.setup()
     train_loader = datamodule.train_dataloader()
 
-    print("- Loading single CT sample")
-    single_sample, _ = next(iter(train_loader))
-    single_sample = single_sample.cuda()
-
     print("- Loading model weights")
     model = VQVAE.load_from_checkpoint(str(args.ckpt_path)).cuda()
+    
+    sample_count = 20
+    sample_count = min(sample_count, len(train_loader))
 
-    print("- Performing forward pass")
-    with torch.no_grad(), torch.cuda.amp.autocast():
-        res, *_ = model(single_sample)
-        res = torch.nn.functional.elu(res)
+    for idx in tqdm(range(sample_count)):
+        
+        print("- Loading single CT sample")
+        single_sample, _ = next(iter(train_loader))
+        single_sample = single_sample.cuda()
 
-    res = res.squeeze().detach().cpu().numpy()
-    res = res * scale_val - scale_val
-    res = np.rint(res).astype(np.int)
+        print("- Performing forward pass")
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            res, *_ = model(single_sample)
+            res = torch.nn.functional.elu(res)
 
-    print("- Writing to nrrd")
-    nrrd.write(str(args.out_path), res, header={'spacings': (0.976, 0.976, 3)})
+        res = res.squeeze().detach().cpu().numpy()
+        res = res * scale_val - scale_val
+        res = np.rint(res).astype(np.int)
+
+        file_output = args.out_path.parent / f"sample_{idx}.nrrd"
+        print(f"- Writing to nrrd to: {file_output}")
+        nrrd.write(str(file_output), res, header={'spacings': (0.976, 0.976, 3)})
 
     print("- Done")
 

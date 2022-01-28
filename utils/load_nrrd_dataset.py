@@ -117,7 +117,7 @@ class CTScanDataset(Dataset):
         transform=None,
         size: Tuple[Union[int, None], Union[int, None], Union[int, None]] = (512, 512, None),
         spacing: Union[Tuple[float, float, float], None] = None,
-        ext: str = '.nrrd'
+        ext: str = '.nrrd' 
     ):
 
         '''size: any scan not compatible with the specified size will be discarded.
@@ -138,6 +138,8 @@ class CTScanDataset(Dataset):
                 nrrd.read_header(str(scan_path))['space directions'][np.diag_indices(3)]
                 for scan_path in scans
             ])
+            
+            matched_spacing = np.where(np.isclose(spacings, spacing, atol=1e-3).all(axis=1))[0]
             faulty_spacing = np.where(~np.isclose(spacings, spacing, atol=1e-3).all(axis=1))[0]
         else:
             faulty_spacing = []
@@ -146,13 +148,16 @@ class CTScanDataset(Dataset):
             print(f"Found {len(faulty_spacing)} scans where their spacing doesn't match the input spacing {spacing}. Ignoring scans {scans[faulty_spacing]}")
 
         faulty_sizes = np.unique(np.where(~(scan_sizes == size).T[np.where(size)[0]])[1])
+        good_sizes = np.unique(np.where((scan_sizes == size).T[np.where(size)[0]])[1])
         if len(faulty_sizes):
-            print(f"Found {len(faulty_sizes)} scans where their size doesn't match the input size {size}. Ignoring scans {scans[faulty_sizes]}")
+            print(f"\n\nFound {len(faulty_sizes)} scans where their size doesn't match the input size {size}. Ignoring scans {scans[faulty_sizes]}")
+            print(f"\n\nFound {len(good_sizes)} scans where their size DOES match the input size {size}. Scans are {scans[good_sizes]}")
 
-        faulty_idx = np.unique(np.append(faulty_sizes, faulty_spacing))
-
-        self.scans = np.delete(scans, faulty_idx)
-        self.scan_sizes = np.delete(scan_sizes, faulty_idx, axis=0)
+        # faulty_idx = np.unique(np.append(faulty_sizes, faulty_spacing))
+        # ONLY HANDLE SIZE NOT SPACING
+        
+        self.scans = np.delete(scans, faulty_sizes)
+        self.scan_sizes = np.delete(scan_sizes, faulty_sizes, axis=0)
 
     def __len__(self) -> int:
         return self.scans.shape[0]

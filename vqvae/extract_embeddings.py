@@ -59,19 +59,27 @@ def main(args):
     db = lmdb.open(
         get_output_abspath(args.checkpoint_path, args.output_path, args.output_name),
         map_size=int(1e12),
-        max_dbs=model.n_bottleneck_blocks
+        # max_dbs=model.n_bottleneck_blocks # REMOVE SUB DATABASES
     )
 
-    sub_dbs = [db.open_db(str(i).encode()) for i in range(model.n_bottleneck_blocks)]
+    # sub_dbs = [db.open_db(str(i).encode()) for i in range(model.n_bottleneck_blocks)]
+    # TYPE OF ENCODING
+    
     with db.begin(write=True) as txn:
         # Write root db metadata
         txn.put(b"num_dbs", str(model.n_bottleneck_blocks).encode())
         txn.put(b"length",  str(len(dataloader)).encode())
         txn.put(b"num_embeddings", pickle.dumps(np.asarray(model.num_embeddings)))
+        txn.put(b"n_bottleneck_blocks", pickle.dumps(str(model.n_bottleneck_blocks)))
 
         for i, sample_encodings in tqdm(enumerate(extract_samples(model, dataloader)), total=len(dataloader)):
-            for sub_db, encoding in zip(sub_dbs, sample_encodings):
-                txn.put(str(i).encode(), pickle.dumps(encoding.cpu().numpy()), db=sub_db)
+
+            sample_encodings_numpy = [sample_encodings[x].cpu().numpy() for x in range(3)]
+            txn.put(str(i).encode(), pickle.dumps(sample_encodings_numpy))
+                    
+            # TODO: Evaluate subdirectory structure
+            # for sub_db, encoding in zip(sub_dbs, sample_encodings):
+            #     txn.put(str(i).encode(), pickle.dumps(encoding.cpu().numpy()), db=sub_db)
 
     db.close()
 

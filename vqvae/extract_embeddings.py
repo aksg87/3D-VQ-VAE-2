@@ -69,8 +69,8 @@ def main(args):
         # Write root db metadata
         txn.put(b"num_dbs", str(model.n_bottleneck_blocks).encode())
         txn.put(b"length",  str(len(dataloader)).encode())
-        txn.put(b"num_embeddings", pickle.dumps(np.asarray(model.num_embeddings)))
-        txn.put(b"n_bottleneck_blocks", pickle.dumps(str(model.n_bottleneck_blocks)))
+        txn.put(b"num_embeddings", str(model.num_embeddings).encode())
+        txn.put(b"n_bottleneck_blocks", str(model.n_bottleneck_blocks).encode())
 
         for i, sample_encodings in tqdm(enumerate(extract_samples(model, dataloader)), total=len(dataloader)):
 

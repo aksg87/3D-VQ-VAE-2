@@ -115,7 +115,7 @@ class CTScanDataset(Dataset):
         self,
         root: str,
         transform=None,
-        size: Tuple[Union[int, None], Union[int, None], Union[int, None]] = (512, 512, None),
+        size: Tuple[Union[int, None], Union[int, None], Union[int, None]] = (128, 128, None),
         spacing: Union[Tuple[float, float, float], None] = None,
         ext: str = '.nrrd' 
     ):
@@ -133,6 +133,8 @@ class CTScanDataset(Dataset):
         # to do it in one go.
         # types = np.array([nrrd.read_header(str(scan_path))['type'] for scan_path in scans])
 
+        spacing = None  # ignores spacing. TODO: Account for spacing in volumes
+        
         if spacing is not None:
             spacings = np.array([
                 nrrd.read_header(str(scan_path))['space directions'][np.diag_indices(3)]

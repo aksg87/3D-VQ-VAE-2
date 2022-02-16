@@ -6,13 +6,31 @@ import lmdb
 import matplotlib.pyplot as plt
 import numpy as np
 import umap
-
+import pandas as pd
+import seaborn as sns
 # https://realpython.com/storing-images-in-python/#reading-from-lmdb
 
 embeddings_dir = Path(
-    "/myfilestore/efs_backups/akshay/vae_test_data/vae_output/"
-    "version_1_epoch=1293-step=2587.lmdb"
+    "/myfilestore/efs_backups/akshay/nrrd_vae_cropped_embeddings/"
+    "version_8_last.lmdb"
 )
+
+# %%
+
+embedding_paths = pd.read_csv ("/myfilestore/efs_backups/akshay/"
+                               "nrrd_vae_cropped_embeddings/data.csv")
+
+mask_labels = pd.read_csv ("/myfilestore/efs_backups/akshay/"
+                           "nrrd_vae_cropped_embeddings/mask_data.csv")
+
+SUFFIX_MASK = "__model_nnunet__mask__cropped"
+mask_labels['key'] = mask_labels.apply(lambda x: x['file_name'].split(SUFFIX_MASK)[0], axis=1) 
+
+SUFFIX_VOL = "__vol__cropped"
+embedding_paths['key'] = embedding_paths.apply(lambda x: x['file_name'].split(SUFFIX_VOL)[0], axis=1) 
+
+mask_data = embedding_paths.merge(mask_labels, on="key", how="left")
+
 
 # %%
 
@@ -53,6 +71,9 @@ with lmdb_env.begin() as txn:
 lmdb_env.close()
 
 # %%
+
+assert len(data) == len(mask_data), "Embeddings and mask_data must be 1 to 1 for UMAP labeling"
+# %%
 flattened_data = [
     np.asarray([d[bottle_neck_idx].flatten() for d in data], dtype=np.float64)
     for bottle_neck_idx in range(3)
@@ -69,22 +90,38 @@ scaled_data = [
 
 # %%
 
+current_palette = sns.color_palette()
+sns.palplot(current_palette)
 
+plt.savefig(f"Color Scale")
+plt.show()
 # %%
 
-for bottle_neck_idx in range(3):
+categories = ["Organ_Category", "Tumor_Category", "Class_3_Category"]
 
-    reducer = umap.UMAP(random_state=22, transform_seed=22)
-    embedding = reducer.fit_transform(scaled_data[bottle_neck_idx])
+for category in categories:
+    for bottle_neck_idx in range(3):
 
-    plt.scatter(
-        embedding[:, 0],
-        embedding[:, 1],
-        # c=[sns.color_palette()[x] for x in penguins.species_short.map({"Adelie":0, "Chinstrap":1, "Gentoo":2})]
-    )
-    plt.gca().set_aspect("equal", "datalim")
-    plt.title(
-        f"UMAP projection of third bottle neck {bottle_neck_idx+1}",
-        fontsize=24,
-    )
-    plt.show()
+        reducer = umap.UMAP(random_state=22, transform_seed=22)
+        embedding = reducer.fit_transform(scaled_data[bottle_neck_idx])
+        
+        color_source = mask_data[category].to_numpy()
+        
+        f, ax = plt.subplots(1, 1)
+        
+        scatter = ax.scatter(
+            embedding[:, 0],
+            embedding[:, 1],
+            c=[sns.color_palette()[x] for x in color_source],
+            alpha=0.7
+        )
+        plt.gca().set_aspect("equal", "datalim")
+        plt.title(
+            f"UMAP - Bottle neck #{bottle_neck_idx+1} - {category}",
+            fontsize=18,
+        )
+        
+        plt.show()
+        f.savefig(f"{category}_bn={bottle_neck_idx}.png", dpi=300)
+
+# %%

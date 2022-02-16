@@ -5,11 +5,23 @@ from pathlib import Path
 import lmdb
 import matplotlib.pyplot as plt
 import numpy as np
-import umap
 import pandas as pd
 import seaborn as sns
-# https://realpython.com/storing-images-in-python/#reading-from-lmdb
+import umap
+from sklearn.preprocessing import StandardScaler
 
+# %% [markdown]
+
+## Visualizing Embeddings from VQ-VAE-2 Using UMAP
+
+# Representation learning to see how latent space interacts with known labels
+# Author: Akshay Goel
+# %% [markdown]
+
+### Import Embeddings in Lightning Memory-Mapped Database Manager (LMDB)
+
+# Embeddings are combined with categorical labels. Current labels are based on pixels of a particular class for a given volume.
+# %%
 embeddings_dir = Path(
     "/myfilestore/efs_backups/akshay/nrrd_vae_cropped_embeddings/"
     "version_8_last.lmdb"
@@ -32,8 +44,11 @@ embedding_paths['key'] = embedding_paths.apply(lambda x: x['file_name'].split(SU
 mask_data = embedding_paths.merge(mask_labels, on="key", how="left")
 
 
-# %%
+# %% [markdown]
 
+### Read Data fro LMDB
+
+# %%
 
 def get_sample_at_idx(idx: int, txn: lmdb.Transaction, unpickle=True):
     sample = txn.get(str(idx).encode())
@@ -72,31 +87,43 @@ lmdb_env.close()
 
 # %%
 
-assert len(data) == len(mask_data), "Embeddings and mask_data must be 1 to 1 for UMAP labeling"
+assert len(data) == len(mask_data), "Embeddings and mask_data must be 1 to 1"
+# %% [markdown]
+
+### Flatten Data to combine Bottle Necks in VQ-VAE-2 into Three Columns
+
 # %%
 flattened_data = [
     np.asarray([d[bottle_neck_idx].flatten() for d in data], dtype=np.float64)
     for bottle_neck_idx in range(3)
 ]
 
-# %%
+# %% [markdown]
 
-from sklearn.preprocessing import StandardScaler
+### Scale Data for Each Bottle Neck Column
+# %%
 
 scaled_data = [
     StandardScaler().fit_transform(flattened_data[bottle_neck_idx])
     for bottle_neck_idx in range(3)
 ]
 
-# %%
+# %% [markdown]
+### Color Scale for Upcoming Plots
 
+# Note: Only first 3 colors are relevant
+
+# %%
 current_palette = sns.color_palette()
 sns.palplot(current_palette)
 
 plt.savefig(f"Color Scale")
 plt.show()
+# %% [markdown]
+### Produce UMAP for Each Category and Each Bottle Neck
+# Total plots = Number_Categories x Bottle Necks
+# Plots are saved as PNG files
 # %%
-
 categories = ["Organ_Category", "Tumor_Category", "Class_3_Category"]
 
 for category in categories:

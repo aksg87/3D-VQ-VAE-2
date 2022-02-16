@@ -3,13 +3,13 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import lmdb
-import torch
 import numpy as np
+import pandas as pd
+import torch
 from tqdm import tqdm
-
-from vqvae.model import VQVAE
 from utils import CTDataModule
 
+from vqvae.model import VQVAE
 
 GPU = torch.device('cuda')
 
@@ -18,10 +18,13 @@ def extract_samples(model, dataloader):
     model.to(GPU)
 
     with torch.no_grad():
-        for sample, _ in dataloader:
+        for idx, (sample, _) in enumerate(dataloader):
             sample = sample.to(GPU)
             *_, encoding_idx = zip(*model.encode(sample))
-            yield encoding_idx
+            
+            path = dataloader.dataset.dataset.get_path(idx)
+            
+            yield encoding_idx, path
 
 
 def get_output_abspath(checkpoint_path: Path, output_path: Path, output_name: str = '') -> str:
@@ -51,7 +54,7 @@ def main(args):
         batch_size=1,
         train_frac=1,
         num_workers=5,
-        rescale_input=(256,256,128)
+        rescale_input=(128,128,128)
     )
     datamodule.setup()
     dataloader = datamodule.train_dataloader()
@@ -64,6 +67,7 @@ def main(args):
 
     # sub_dbs = [db.open_db(str(i).encode()) for i in range(model.n_bottleneck_blocks)]
     # TYPE OF ENCODING
+    df = pd.DataFrame(columns=["paths"])
     
     with db.begin(write=True) as txn:
         # Write root db metadata
@@ -72,8 +76,10 @@ def main(args):
         txn.put(b"num_embeddings", str(model.num_embeddings).encode())
         txn.put(b"n_bottleneck_blocks", str(model.n_bottleneck_blocks).encode())
 
-        for i, sample_encodings in tqdm(enumerate(extract_samples(model, dataloader)), total=len(dataloader)):
+        for i, (sample_encodings, path) in tqdm(enumerate(extract_samples(model, dataloader)), total=len(dataloader)):
 
+            df.loc[i] = path
+            
             sample_encodings_numpy = [sample_encodings[x].cpu().numpy() for x in range(3)]
             txn.put(str(i).encode(), pickle.dumps(sample_encodings_numpy))
                     
@@ -82,6 +88,7 @@ def main(args):
             #     txn.put(str(i).encode(), pickle.dumps(encoding.cpu().numpy()), db=sub_db)
 
     db.close()
+    df.to_csv(args.output_path / "data.csv")
 
 if __name__ == '__main__':
     parser = ArgumentParser()

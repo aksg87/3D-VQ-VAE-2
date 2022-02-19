@@ -75,13 +75,18 @@ with lmdb_env.begin() as txn:
 
     print(f"dataset length {int(length)}")  # type: ignore
     print(f"n_bottleneck_blocks  {int(n_bottleneck_blocks)}")  # type: ignore
-
+    print("\nFirst few examples:")
     for idx in range(length):
         sample: list = get_sample_at_idx(idx, txn)  # type: ignore
-        print(
-            f"sample #{idx} : {[sample[neck_idx].shape for neck_idx in range(n_bottleneck_blocks)]}"
-        )
+        
+        if idx < 3:
+            print(
+                f"sample #{idx} : {[sample[neck_idx].shape for neck_idx in range(n_bottleneck_blocks)]}"
+            )
+            
         data.append(sample)
+
+    print("...\n... all embeddings added from disk")
 
 lmdb_env.close()
 
@@ -150,5 +155,52 @@ for category in categories:
         
         plt.show()
         f.savefig(f"{category}_bn={bottle_neck_idx}.png", dpi=300)
+
+# %% [markdown]
+
+## Exploring Variation of Embeddings: Real vs. Random
+
+# %% [markdown]
+
+### Real Categories
+
+# %%
+uniques, frequency = np.unique(mask_data["Tumor_Category"], return_counts=True)
+print(f"Counts of different categories: {frequency}")
+# %%
+
+for bottle_neck_idx in range(3):
+    embedding = reducer.fit_transform(scaled_data[bottle_neck_idx])
+    print(f"---bottle neck: {bottle_neck_idx} ---")
+    for category_idx in uniques:
+        categories = mask_data["Tumor_Category"].to_numpy()
+        embedding_w_mask = np.column_stack((embedding, categories))
+        selection = embedding_w_mask[:,2] == category_idx
+        
+        embeddings_subset = embedding_w_mask[selection]
+        var = np.var(embeddings_subset, axis=0)
+        print(f"Var for {category_idx} is {var} for bottle-neck {bottle_neck_idx}")
+
+# %% [markdown]
+
+### Random Categories
+# %%
+from random import randint
+
+rand_categories = [randint(0, 2) for _ in range(len(embedding))]
+rand_categories = np.asarray(rand_categories)
+uniques, frequency = np.unique(rand_categories, return_counts=True)
+print(f"Counts of random categories: {frequency}")
+
+for bottle_neck_idx in range(3):
+    embedding = reducer.fit_transform(scaled_data[bottle_neck_idx])
+    print(f"---bottle neck: {bottle_neck_idx} ---")
+    for category in uniques:
+        embedding_w_mask = np.column_stack((embedding, rand_categories))
+        selection = embedding_w_mask[:,2] == category
+        
+        embeddings_subset = embedding_w_mask[selection]
+        var = np.var(embeddings_subset, axis=0)
+        print(f"Var (random) for {category} is {var}")
 
 # %%

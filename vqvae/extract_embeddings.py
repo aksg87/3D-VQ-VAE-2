@@ -13,12 +13,25 @@ from vqvae.model import VQVAE
 
 GPU = torch.device('cuda')
 
+
 def extract_samples(model, dataloader):
     model.eval()
     model.to(GPU)
 
+    idx_dataloader = enumerate(dataloader)
     with torch.no_grad():
-        for idx, (sample, _) in enumerate(dataloader):
+        while True:
+            
+            try:
+                nxt = next(idx_dataloader, None)
+            except ValueError:
+                continue
+            
+            if nxt is not None:
+                idx, (sample, _)  = nxt
+            else:
+                break
+                
             sample = sample.to(GPU)
             *_, encoding_idx = zip(*model.encode(sample))
             
@@ -67,7 +80,7 @@ def main(args):
 
     # sub_dbs = [db.open_db(str(i).encode()) for i in range(model.n_bottleneck_blocks)]
     # TYPE OF ENCODING
-    df = pd.DataFrame(columns=["paths"])
+    df = pd.DataFrame(columns=["file_name"])
     
     with db.begin(write=True) as txn:
         # Write root db metadata
@@ -78,7 +91,7 @@ def main(args):
 
         for i, (sample_encodings, path) in tqdm(enumerate(extract_samples(model, dataloader)), total=len(dataloader)):
 
-            df.loc[i] = path
+            df.loc[i] = Path(path).name
             
             sample_encodings_numpy = [sample_encodings[x].cpu().numpy() for x in range(3)]
             txn.put(str(i).encode(), pickle.dumps(sample_encodings_numpy))

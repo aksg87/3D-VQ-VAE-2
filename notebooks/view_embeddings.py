@@ -22,26 +22,31 @@ from sklearn.preprocessing import StandardScaler
 
 # Embeddings are combined with categorical labels. Current labels are based on pixels of a particular class for a given volume.
 # %%
+root = Path("/myfilestore/efs_backups/akshay/04_cropped_OHSU_GT_embeddings_1")
+
 embeddings_dir = Path(
-    "/myfilestore/efs_backups/akshay/nrrd_vae_cropped_embeddings/"
-    "version_8_last.lmdb"
+   "/myfilestore/efs_backups/akshay/04_cropped_OHSU_GT_embeddings_1/version_8_epoch=33588-step=7154455.lmdb"
 )
+
+
 
 # %%
 
-embedding_paths = pd.read_csv ("/myfilestore/efs_backups/akshay/"
-                               "nrrd_vae_cropped_embeddings/data.csv")
+embedding_paths = pd.read_csv (root / "data.csv")
 
-mask_labels = pd.read_csv ("/myfilestore/efs_backups/akshay/"
-                           "nrrd_vae_cropped_embeddings/mask_data.csv")
+mask_labels = pd.read_csv (root / "mask_data.csv")
 
-SUFFIX_MASK = "__model_nnunet__mask__cropped"
-mask_labels['key'] = mask_labels.apply(lambda x: x['file_name'].split(SUFFIX_MASK)[0], axis=1) 
+# Isolates stems for mask and volumes to merge csv data
+# TODO: Move outside of this script
+
+SUFFIX_MASK = "__init" # adjust to isolate stem at [0]
+mask_labels['key'] = mask_labels.apply(lambda x: x['filename'].split(SUFFIX_MASK)[0], axis=1) 
+mask_labels.drop_duplicates('key', inplace=True)
 
 SUFFIX_VOL = "__vol__cropped"
 embedding_paths['key'] = embedding_paths.apply(lambda x: x['file_name'].split(SUFFIX_VOL)[0], axis=1) 
 
-mask_data = embedding_paths.merge(mask_labels, on="key", how="left")
+mask_data = pd.merge(embedding_paths, mask_labels, on='key', how='left')
 
 
 # %% [markdown]
@@ -65,6 +70,7 @@ lmdb_env = lmdb.open(
 
 data = []
 
+# %%
 # Start a new read transaction
 with lmdb_env.begin() as txn:
 
@@ -129,7 +135,7 @@ plt.show()
 # Total plots = Number_Categories x Bottle Necks
 # Plots are saved as PNG files
 # %%
-categories = ["Organ_Category", "Tumor_Category", "Class_3_Category"]
+categories = ["Organ_Category", "Tumor_Category"]
 
 for category in categories:
     for bottle_neck_idx in range(3):
